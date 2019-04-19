@@ -49,7 +49,7 @@ def gtnc(para=dict()):
     para['theta'] = (numpy.pi/2) / 255
     para['mapped_dimension'] = 2
     # Training Parameter
-    # para['training_label'] = [[0],[1],[2],[3],[4],[5],[6],[7],[8],[9]]  # para['training_label'] should be a list
+    # para['training_label'] = [[0],[1],[2],[3],[4],[5],[6],[7],[8],[9]]  # para['training_label'] should be a list of lists
     para['training_label'] = [[3], [8]]
     para['n_training'] = 'all'  # an int or 'all'
     para['update_mode'] = 'one_dot'  # one_dot or two_dots
