@@ -30,7 +30,7 @@ class MachineLearning:
         self.prepare_start_learning()
         if self.update_info['is_converged'] == 'untrained':
             self.update_info['is_converged'] = False
-        while self.update_info['loops_learned'] >= learning_loops:
+        while self.update_info['loops_learned'] > learning_loops:
             print('you have learnt too many loops')
             learning_loops = int(input("learning_loops = "))
         if self.update_info['loops_learned'] == 0:
