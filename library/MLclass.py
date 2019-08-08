@@ -203,7 +203,7 @@ class MachineLearning:
             self.update_info['cost_time_cpu'].append(self.tmp['end_time_cpu'] - self.tmp['start_time_cpu'])
             self.update_info['cost_time_wall'].append(self.tmp['end_time_wall'] - self.tmp['start_time_wall'])
 
-    def print_running_time(self, print_type=('wall', 'cpu')):
+    def print_running_time(self, print_type=('wall')):
         if ('cpu' in print_type) or ('cpu' == print_type):
             print('This loop consumes ' + str(self.tmp['end_time_cpu']
                                               - self.tmp['start_time_cpu']) + ' cpu seconds.')
