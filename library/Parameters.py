@@ -49,7 +49,7 @@ def gtnc(para=dict()):
     para['resize_size'] = (14, 14)
     # MPS Parameter
     para['physical_bond'] = 2
-    para['virtual_bond_limitation'] = 64
+    para['virtual_bond_limitation'] = 32
     para['mps_cutoff'] = -1
     para['mps_rand_seed'] = 1
     # Feature Map Parameter
