@@ -1,8 +1,7 @@
-
-
 from library import MPSMLclass
+from library import Parameters
 
-A = MPSMLclass.GTN()
-
-A.start_learning()
+para = Parameters.gtn()
+GTN = MPSMLclass.GTN(para=para, device='cuda') # change device='cuda' to use GPU
+GTN.start_learning()
 

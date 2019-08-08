@@ -3,46 +3,65 @@ import os
 import math
 import scipy.special
 import time
-from library import mnist_functions
+import torch
+from library import Parameters
+import gzip
+from skimage import io, restoration
+import copy
+import cv2
+import skimage
+import torchvision
 
 
 class MachineLearning:
 
-    def __init__(self, para, debug_mode=False):
+    def __init__(self, para=Parameters.ml(), debug_mode=False):
         # initialize parameters
-        self.para = para.copy()
+        self.para = copy.deepcopy(para)
         self.images_data = dict()
         self.index = dict()
         self.labels_data = dict()
         self.update_info = dict()
+        self.data_info = dict()
         self.tmp = {}
-        self.generative_model = ['GTN']
+        self.generative_model = ['GTN', 'GTNO',  'GTNO_OneLayer',  'GTNO_TwoLayer', 'GJEPG']
         self.discriminative_model = ['DTNC']
+
+    def initialize_dataset(self):
         # Load the data set
         self.load_dataset()
-        # Calculate the basic information of the data set
+        self.data_info['labels'] = tuple(list(self.labels_data['train']))
+        # self.data_info['n_training'] = self.para['n_training']
+        # Deal data
         self.calculate_dataset_info()
         # Arrange Data
         self.arrange_data()
+        if self.para['classifier_type'] in self.generative_model:
+            self.images_data['dealt_input'] = self.deal_data(self.images_data['input'])
+            self.data_info['n_training'], self.data_info['n_feature'] = \
+                self.images_data['dealt_input'].shape
 
     def start_learning(self, learning_loops=30):
         self.print_program_info(mode='start')
-        self.prepare_start_learning()
-        if self.update_info['is_converged'] == 'untrained':
-            self.update_info['is_converged'] = False
-        while self.update_info['loops_learned'] > learning_loops:
-            print('you have learnt too many loops')
-            learning_loops = int(input("learning_loops = "))
-        if self.update_info['loops_learned'] == 0:
-            self.calculate_cost_function()
-            self.update_info['cost_function_loops'].append(self.update_info['cost_function'])
-            print('Initializing ... cost function = ' + str(self.update_info['cost_function']))
-        print('start to learn to ' + str(learning_loops) + ' loops')
-        while (self.update_info['loops_learned'] < learning_loops) and not(self.update_info['is_converged']):
-            self.update_one_loop()
-            self.is_converge()
-            self.save_data()
-        self.save_data()
+        if self.update_info['is_converged'] is not True:
+            self.prepare_start_learning()
+            if self.update_info['is_converged'] == 'untrained':
+                self.update_info['is_converged'] = False
+            while self.update_info['loops_learned'] >= learning_loops:
+                print('you have learnt too many loops')
+                learning_loops = int(input("learning_loops = "))
+            if self.update_info['loops_learned'] == 0:
+                self.calculate_cost_function()
+                self.update_info['cost_function_loops'].append(self.update_info['cost_function'])
+                print('Initializing ... cost function = ' + str(self.update_info['cost_function']))
+            if not self.update_info['is_converged']:
+                print('start to learn to ' + str(learning_loops) + ' loops')
+            while (self.update_info['loops_learned'] < learning_loops) and not(self.update_info['is_converged']):
+                self.update_one_loop()
+                self.is_converge()
+                self.save_data()
+        else:
+            print('load converged mps, do not need training.')
         if self.update_info['is_converged']:
             self.print_converge_info()
         else:
@@ -51,28 +70,52 @@ class MachineLearning:
         self.print_program_info(mode='end')
 
     def load_dataset(self):
-        if (self.para['dataset'] == 'mnist') or (self.para['dataset'] == 'fashion'):
-            self.images_data['train'], self.labels_data['train'] = mnist_functions.\
-                load_mnist(os.path.join(self.para['path_dataset'], self.para['dataset']), kind='train')
-            self.images_data['test'], self.labels_data['test'] = mnist_functions.\
-                load_mnist(os.path.join(self.para['path_dataset'], self.para['dataset']), kind='t10k')
-            self.para['labels'] = sorted(set(self.labels_data['train']))
+        if self.para['dataset'] == 'mnist':
+            data_tmp = torchvision.datasets.MNIST(root=self.para['path_dataset'], download=True, train=True)
+            self.images_data['train'] = data_tmp.data.numpy().reshape(-1, 784)
+            self.labels_data['train'] = data_tmp.targets.numpy()
+            data_tmp = torchvision.datasets.MNIST(root=self.para['path_dataset'], download=True, train=False)
+            self.images_data['test'] = data_tmp.data.numpy().reshape(-1, 784)
+            self.labels_data['test'] = data_tmp.targets.numpy()
+            self.data_info['origin_shape'] = (28, 28)
+        elif self.para['dataset'] == 'fashion':
+            data_tmp = torchvision.datasets.FashionMNIST(root=self.para['path_dataset'], download=True, train=True)
+            self.images_data['train'] = data_tmp.data.numpy().reshape(-1, 784)
+            self.labels_data['train'] = data_tmp.targets.numpy()
+            data_tmp = torchvision.datasets.FashionMNIST(root=self.para['path_dataset'], download=True, train=False)
+            self.images_data['test'] = data_tmp.data.numpy().reshape(-1, 784)
+            self.labels_data['test'] = data_tmp.targets.numpy()
+            self.data_info['origin_shape'] = (28, 28)
+        elif self.para['dataset'] == 'Berkeley Segmentation Dataset':
+            img_path = self.para['path_dataset'] + 'BSDS300/images/'
+            for data_type in self.para['data_type']:
+                img_path_tmp = img_path + data_type + '/'
+                all_names = os.listdir(img_path_tmp)
+                self.images_data[data_type] = list()
+                for name in all_names:
+                    tmp_img = io.imread(img_path_tmp + name)
+                    if tmp_img.shape[0] > tmp_img.shape[1]:
+                        tmp_img = numpy.transpose(tmp_img, [1, 0, 2])
+                    self.images_data[data_type].append(tmp_img.flatten())
+                self.images_data[data_type] = numpy.array(self.images_data[data_type])
+                self.labels_data[data_type] = numpy.zeros(self.images_data[data_type].shape[0])
+            self.data_info['origin_shape'] = (321, 481, 3)
+        self.data_info['shape'] = copy.copy(self.data_info['origin_shape'])
 
     def calculate_dataset_info(self):
-        self.para['n_sample'] = {}
+        self.data_info['n_sample'] = dict()
         for data_type in self.para['data_type']:
-            self.para['n_sample'][data_type] = {}
-            self.para['n_sample'][data_type] = (self.images_data[data_type]).shape[0]
-        self.para['n_feature'] = (self.images_data['train']).shape[1]
-        self.para['n_length'] = self.para['n_feature']
+            self.data_info['n_sample'][data_type] = dict()
+            self.data_info['n_sample'][data_type] = (self.images_data[data_type]).shape[0]
+        self.data_info['n_feature'] = (self.images_data['train']).shape[1]
         for data_type in self.para['data_type']:
             self.index[data_type] = dict()
-            self.index[data_type]['origin'] = numpy.arange(self.para['n_sample'][data_type])
+            self.index[data_type]['origin'] = numpy.arange(self.data_info['n_sample'][data_type])
 
     def divide_data(self, data_type='train'):
         self.index[data_type]['divided'] = dict()
         if self.para['divide_module'] == 'label':
-            for label in self.para['labels']:
+            for label in self.data_info['labels']:
                 self.index[data_type]['divided'][label] = numpy.where(label == self.labels_data[data_type])[0]
 
     def arrange_data(self):
@@ -85,18 +128,20 @@ class MachineLearning:
             self.labels_data['input'] = list()
             for label in tuple(list(self.para['training_label'])):
                 self.images_data['input'] += list((self.images_data['train'][
-                                            self.index['train']['divided'][label], :]))
+                                            self.index['train']['divided'][label]]))
                 self.labels_data['input'] += list((self.labels_data['train'][
                                         self.index['train']['divided'][label]]))
             self.images_data['input'] = numpy.array(self.images_data['input'])
             self.labels_data['input'] = numpy.array(self.labels_data['input'])
             self.images_data['input'], self.labels_data['input'] = \
                 self.rand_sort_data(self.images_data['input'], self.labels_data['input'])
-            if self.para['n_training'] == 'all':
-                self.para['n_training'] = len(self.labels_data['input'])
-            if self.para['n_training'] < len(self.labels_data['input']):
-                self.images_data['input'] = self.images_data['input'][range(self.para['n_training']), :]
-                self.labels_data['input'] = self.labels_data['input'][range(self.para['n_training'])]
+            if (self.para['n_training'] == 'all') or (self.para['n_training'] > len(self.labels_data['input'])):
+                self.data_info['n_training'] = len(self.labels_data['input'])
+            else:
+                self.data_info['n_training'] = self.para['n_training']
+            if self.data_info['n_training'] < len(self.labels_data['input']):
+                self.images_data['input'] = self.images_data['input'][range(self.data_info['n_training']), :]
+                self.labels_data['input'] = self.labels_data['input'][range(self.data_info['n_training'])]
 
     def feature_map(self, image_data_mapping):
         image_data_mapping = numpy.array(image_data_mapping)
@@ -104,12 +149,33 @@ class MachineLearning:
             image_data_mapping = image_data_mapping * self.para['theta']
             while numpy.ndim(image_data_mapping) < 2:
                 image_data_mapping.shape = (1,) + image_data_mapping.shape
-            image_data_mapped = numpy.zeros(image_data_mapping.shape + (self.para['mapped_dimension'],))
+            image_data_mapping = torch.tensor(image_data_mapping, device=self.device, dtype=self.dtype)
+            image_data_mapped = torch.zeros(
+                (image_data_mapping.shape + (self.para['mapped_dimension'],)), device=self.device, dtype=self.dtype)
             for ii in range(self.para['mapped_dimension']):
                 image_data_mapped[:, :, ii] = math.sqrt(
                     scipy.special.comb(self.para['mapped_dimension'] - 1, ii)) * (
-                        numpy.sin(image_data_mapping) ** (self.para['mapped_dimension'] - ii - 1)) * (
-                        numpy.cos(image_data_mapping) ** ii)
+                        torch.sin(image_data_mapping) ** (self.para['mapped_dimension'] - ii - 1)) * (
+                        torch.cos(image_data_mapping) ** ii)
+        elif self.para['map_module'] == 'linear_map':
+            while numpy.ndim(image_data_mapping) < 2:
+                image_data_mapping.shape = (1,) + image_data_mapping.shape
+            image_data_mapping = torch.tensor(image_data_mapping, device=self.device, dtype=self.dtype)
+            image_data_mapped = torch.stack((image_data_mapping, 1-image_data_mapping), 2)
+            if not self.para['mapped_dimension'] == 2:
+                print('check you code, mapped_dimension is wrong')
+                image_data_mapped = False
+        elif self.para['map_module'] == 'sqrt_linear_map':
+            while numpy.ndim(image_data_mapping) < 2:
+                image_data_mapping.shape = (1,) + image_data_mapping.shape
+            image_data_mapping = torch.tensor(image_data_mapping, device=self.device, dtype=self.dtype)
+            image_data_mapped = torch.stack((
+                image_data_mapping ** 0.5, (1-image_data_mapping) ** 0.5), 2)
+            if not self.para['mapped_dimension'] == 2:
+                print('check you code, mapped_dimension is wrong')
+                image_data_mapped = False
+        else:
+            image_data_mapped = False
         return image_data_mapped
 
     def anti_feature_map(self, state):
@@ -149,9 +215,9 @@ class MachineLearning:
         if self.para['converge_type'] == 'cost function':
             loops_learned = self.update_info['loops_learned']
             cost_function_loops = self.update_info['cost_function_loops']
-            self.update_info['is_converged'] = \
+            self.update_info['is_converged'] = bool(
                 ((cost_function_loops[loops_learned - 1] - cost_function_loops[loops_learned]) /
-                 cost_function_loops[loops_learned - 1]) < self.para['converge_accuracy']
+                 abs(cost_function_loops[loops_learned - 1])) < self.para['converge_accuracy'])
             if self.update_info['is_converged']:
                 if self.update_info['step'] > self.para['step_accuracy']:
                     self.update_info['step'] /= self.para['step_decay_rate']
@@ -174,4 +240,132 @@ class MachineLearning:
         self.update_info['is_converged'] = 'untrained'
         self.update_info['update_mode'] = self.para['update_mode']
 
+    def deal_data(self, image_data, data_deal_method=tuple(), reverse_mode='off'):
+        tmp_image_data = image_data.copy()
+        if numpy.ndim(tmp_image_data) == 1:
+            tmp_image_data.shape = (1,) + tmp_image_data.shape
+        if len(data_deal_method) == 0:
+            data_deal_method = self.para['data_deal_method']
+        if reverse_mode == 'off':
+            for method in data_deal_method:
+                tmp_image_data = self.deal_data_once(tmp_image_data.copy(), method, reverse_mode=reverse_mode)
+        elif reverse_mode == 'on':
+            for method in reversed(data_deal_method):
+                tmp_image_data = self.deal_data_once(tmp_image_data.copy(), method, reverse_mode=reverse_mode)
+        return tmp_image_data
+
+    def deal_data_once(self, image_data, method, reverse_mode='off'):
+        tmp_image_data = image_data.copy()
+        if ('rgb2gray' == method) & (reverse_mode == 'off'):
+            tmp = list()
+            for jj in range(tmp_image_data.shape[0]):
+                tmp.append(
+                    cv2.cvtColor(tmp_image_data[jj].reshape(
+                        self.data_info['origin_shape']), cv2.COLOR_RGB2GRAY).flatten())
+            tmp_image_data = numpy.array(tmp)
+            self.data_info['shape'] = (self.data_info['origin_shape'][0], self.data_info['origin_shape'][1])
+        if ('resize' == method) & (reverse_mode == 'off'):
+            tmp = list()
+            for jj in range(tmp_image_data.shape[0]):
+                tmp.append(cv2.resize(
+                    tmp_image_data[jj].reshape(self.data_info['origin_shape']),
+                    self.para['resize_size']).flatten())
+            tmp_image_data = numpy.array(tmp)
+            self.data_info['shape'] = (
+                self.para['resize_size'][1], self.para['resize_size'][0])
+            self.data_info['n_feature'] = tmp_image_data.shape[1]
+        if ('normalization' == method) & (reverse_mode == 'off'):
+            tmp_image_data = tmp_image_data / tmp_image_data.max()
+        if ('noise' == method) & (reverse_mode == 'off'):
+            tmp_image_data = skimage.util.random_noise(
+                tmp_image_data, mean=0,
+                var=self.para['var_noise'],
+                seed=self.para['noise_seed'])
+        if ('dct' == method) & (reverse_mode == 'off'):
+            for jj in range(tmp_image_data.shape[0]):
+                tmp_image_data[jj] = cv2.dct(
+                    tmp_image_data[jj].reshape(self.data_info['shape'])).flatten()
+        if ('dct' == method) & (reverse_mode == 'on'):
+            for jj in range(tmp_image_data.shape[0]):
+                tmp_image_data[jj] = cv2.idct(
+                    tmp_image_data[jj].reshape(self.data_info['shape'])).flatten()
+        if ('standardize' == method) & (reverse_mode == 'off'):
+            self.data_info['standardize'] = (tmp_image_data.max() - tmp_image_data.min(), tmp_image_data.min())
+            tmp_image_data = tmp_image_data - self.data_info['standardize'][1]
+            tmp_image_data = tmp_image_data / self.data_info['standardize'][0]
+        if ('standardize' == method) & (reverse_mode == 'on'):
+            tmp_image_data = tmp_image_data * self.data_info['standardize'][0]
+            tmp_image_data = tmp_image_data + self.data_info['standardize'][1]
+        if ('snake_like' == method) & (reverse_mode == 'off'):
+            # testing code
+            side_length = self.data_info['shape'][0]
+            index_matrix = torch.zeros(side_length, side_length)
+            index = 0
+            for tt in range(2 * side_length - 2):
+                for jj in range(side_length):
+                    if -1 < tt - jj < side_length:
+                        index_matrix[jj, tt - jj] = index
+                        index += 1
+            index = index_matrix.reshape(-1)
+            tmp_image_data = tmp_image_data[:, index.int()]
+        if ('snake_like' == method) & (reverse_mode == 'off'):
+            # testing code
+            side_length = self.data_info['shape'][0]
+            index_matrix = torch.zeros(side_length, side_length)
+            index = 0
+            for tt in range(2 * side_length - 2):
+                for jj in range(side_length):
+                    if -1 < tt - jj < side_length:
+                        index_matrix[jj, tt - jj] = index
+                        index += 1
+            index = index_matrix.reshape(-1)
+            tmp_image_data[:, index.int()] = tmp_image_data
+        if ('split_test' == method) & (reverse_mode == 'off'):
+            tmp_shapes = self.para['split_shapes']
+            tmp_shapeb = self.para['split_shapeb']
+            shapea = (tmp_shapes[0] * tmp_shapeb[0], tmp_shapes[1] * tmp_shapeb[1])
+            index_xx = torch.zeros(tmp_shapeb + tmp_shapes)
+            for xx in range(tmp_shapes[0]):
+                for yy in range(tmp_shapes[1]):
+                    index_xx[0, 0, xx, yy] = xx * shapea[1] + yy
+            for xx in range(tmp_shapeb[0]):
+                for yy in range(tmp_shapeb[1]):
+                    index_xx[xx, yy, :, :] = index_xx[0, 0, :, :] + yy * tmp_shapes[1] \
+                                             + xx * shapea[1] * tmp_shapes[0]
+            tmp_image_data = image_data[:, index_xx.int().reshape(-1)]
+            tmp_image_data = tmp_image_data.reshape(
+                image_data.shape[0] * numpy.prod(tmp_shapeb), numpy.prod(tmp_shapes))
+            self.data_info['shape'] = tmp_shapes
+        if ('split_test' == method) & (reverse_mode == 'on'):
+            tmp_shapes = self.para['split_shapes']
+            tmp_shapeb = self.para['split_shapeb']
+            shapea = (tmp_shapes[0] * tmp_shapeb[0], tmp_shapes[1] * tmp_shapeb[1])
+            index_xx = torch.zeros(tmp_shapeb + tmp_shapes)
+            for xx in range(tmp_shapes[0]):
+                for yy in range(tmp_shapes[1]):
+                    index_xx[0, 0, xx, yy] = xx * shapea[1] + yy
+            for xx in range(tmp_shapeb[0]):
+                for yy in range(tmp_shapeb[1]):
+                    index_xx[xx, yy, :, :] = index_xx[0, 0, :, :] + yy * tmp_shapes[1] \
+                                             + xx * shapea[1] * tmp_shapes[0]
+            tmp_image_data = tmp_image_data.reshape(-1, numpy.prod(tmp_shapeb + tmp_shapes))
+            tmp_image_data[:, index_xx.int().reshape(-1)] = tmp_image_data.copy()
+        if ('test' == method) & (reverse_mode == 'off'):
+            tmp_image_data = tmp_image_data + 5
+            tmp_image_data = tmp_image_data / 25
+        if ('test' == method) & (reverse_mode == 'on'):
+            tmp_image_data = tmp_image_data * 25
+            tmp_image_data = tmp_image_data - 5
+        return tmp_image_data
+
+    def denoise_image(self, img_noise, method='nlm'):
+        if method == 'nlm':
+            img_denoised = restoration.denoise_nl_means(
+                img_noise.reshape(self.data_info['origin_shape'])).reshape(img_noise.shape)
+        elif method == 'tv':
+            img_denoised = restoration.denoise_tv_chambolle(
+                img_noise.reshape(self.data_info['origin_shape']))
+        elif method == 'mpo':
+            img_denoised = self.denoise_image_mpo(img_noise)
+        return img_denoised
 

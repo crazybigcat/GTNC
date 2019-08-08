@@ -1,4 +1,5 @@
 import numpy
+import torch
 
 
 def outer_parallel(a, *matrix):
@@ -43,9 +44,10 @@ def tensor_svd(tmp_tensor, index_left='none', index_right='none'):
         index_right = numpy.setdiff1d(tmp_index, index_left)
     index_right = numpy.array(index_right).flatten()
     index_left = numpy.array(index_left).flatten()
-    tmp_tensor = tmp_tensor.transpose(numpy.concatenate([index_left, index_right]))
+    tmp_tensor = tmp_tensor.permute(tuple(numpy.concatenate([index_left, index_right])))
     tmp_tensor = tmp_tensor.reshape(tmp_shape[index_left].prod(), tmp_shape[index_right].prod())
-    u, l, v = numpy.linalg.svd(tmp_tensor, full_matrices=False)
+    u, l, v = torch.svd(tmp_tensor)
     return u, l, v
+
 
 

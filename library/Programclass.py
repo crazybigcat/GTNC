@@ -1,11 +1,15 @@
+import torch
 import time
 from library import BasicFunctions_szz
 
 
 class Program:
 
-    def __init__(self):
+    def __init__(self, device='cuda', dtype=torch.float64):
         self.program_info = dict()
+        self.device_type = device
+        self.device = BasicFunctions_szz.get_best_gpu(device=device)
+        self.dtype = dtype
         self.calculate_program_info_time(mode='start')
 
     def print_program_info(self, mode='start'):
@@ -33,5 +37,9 @@ class Program:
 
     def name_md5_generate(self):
         self.program_info['save_name'] = BasicFunctions_szz.name_generator_md5(
-            self.program_info['path_save'], self.program_info['program_name'], self.para)
+            self.program_info['path_save'], self.program_info['program_name'],
+            self.para, rough_mode=self.para['rough_mode'])
 
+    def integrate_codebook(self):
+        BasicFunctions_szz.integrate_codebook(
+            self.program_info['path_save'], self.program_info['program_name'])

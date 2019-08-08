@@ -1,4 +1,3 @@
-
 class TensorNetwork:
 
     def __init__(self):
