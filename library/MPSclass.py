@@ -65,13 +65,6 @@ class MPS(TNclass.TensorNetwork):
             [self.tensor_data[tensor_index - 1], u.mm(torch.diag(s))])
         self.tensor_info['regular_center'] -= 1
 
-    # def move_regular_center2forward(self):
-    #     self.reverse_mps()
-    #     self.move_regular_center2next()
-    #     self.reverse_mps()
-
-    # def move_regular_center2next(self):
-
     def measure_mps(self, operator=numpy.diag([1, -1])):
         # testing code
         measure_data = numpy.zeros(self.tensor_info['n_length'])

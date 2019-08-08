@@ -27,10 +27,6 @@ def gtn(para=dict()):
     para['training_label'] = list(range(10))  # para['training_label'] should be a list
     para['n_training'] = 1000  # an int or 'all'
     para['update_mode'] = 'one_dot'  # one_dot or two_dots
-    para['converge_accuracy'] = 1e-2
-    para['rand_index_mode'] = 'on'
-    para['rand_index_seed'] = 1
-    para['tensor_acc'] = 1e-8
     return para
 
 
@@ -63,10 +59,6 @@ def gtnc(para=dict()):
     # para['training_label'] = [[3], [8]]
     para['n_training'] = 'all'  # an int or 'all'
     para['update_mode'] = 'one_dot'  # one_dot or two_dots ()
-    para['converge_accuracy'] = 1e-2
-    para['rand_index_mode'] = 'on'
-    para['rand_index_seed'] = 1
-    para['tensor_acc'] = 1e-7
     return para
 
 
@@ -119,7 +111,7 @@ def training(para=dict()):
     para['n_training'] = 40  # an int or 'all'
     para['update_step'] = 2e-1
     para['step_decay_rate'] = 5
-    para['step_accuracy'] = 1e-3
+    para['step_accuracy'] = 5e-3
     para['normalization_update_mode'] = 'on'
     para['update_mode'] = 'one_dot'  # one_dot or two_dots
     para['update_method'] = 'SZZ'

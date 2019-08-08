@@ -5,8 +5,7 @@ import scipy.special
 import time
 import torch
 from library import Parameters
-import gzip
-from skimage import io, restoration
+from skimage import io
 import copy
 import cv2
 import skimage
@@ -78,6 +77,7 @@ class MachineLearning:
             self.images_data['test'] = data_tmp.data.numpy().reshape(-1, 784)
             self.labels_data['test'] = data_tmp.targets.numpy()
             self.data_info['origin_shape'] = (28, 28)
+            del data_tmp
         elif self.para['dataset'] == 'fashion':
             data_tmp = torchvision.datasets.FashionMNIST(root=self.para['path_dataset'], download=True, train=True)
             self.images_data['train'] = data_tmp.data.numpy().reshape(-1, 784)
@@ -86,6 +86,7 @@ class MachineLearning:
             self.images_data['test'] = data_tmp.data.numpy().reshape(-1, 784)
             self.labels_data['test'] = data_tmp.targets.numpy()
             self.data_info['origin_shape'] = (28, 28)
+            del data_tmp
         elif self.para['dataset'] == 'Berkeley Segmentation Dataset':
             img_path = self.para['path_dataset'] + 'BSDS300/images/'
             for data_type in self.para['data_type']:
@@ -358,14 +359,4 @@ class MachineLearning:
             tmp_image_data = tmp_image_data - 5
         return tmp_image_data
 
-    def denoise_image(self, img_noise, method='nlm'):
-        if method == 'nlm':
-            img_denoised = restoration.denoise_nl_means(
-                img_noise.reshape(self.data_info['origin_shape'])).reshape(img_noise.shape)
-        elif method == 'tv':
-            img_denoised = restoration.denoise_tv_chambolle(
-                img_noise.reshape(self.data_info['origin_shape']))
-        elif method == 'mpo':
-            img_denoised = self.denoise_image_mpo(img_noise)
-        return img_denoised
 
