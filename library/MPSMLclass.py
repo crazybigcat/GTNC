@@ -376,7 +376,11 @@ class GTNC(Programclass.Program, MLclass.MachineLearning):
                 para['classifier_type'] = 'GTN'
                 para['training_label'] = mps_label
                 tmp = GTN(copy.deepcopy(para))
-                self.data_mapped[data_type][str(mps_label)] = tmp.tensor_input.numpy()
+                                if 'dealt_input' not in tmp.images_data.keys():
+                    tmp.initialize_dataset()
+                if isinstance(tmp.tensor_input, tuple):
+                    tmp.tensor_input = tmp.feature_map(tmp.images_data['dealt_input'])
+                self.data_mapped[data_type][str(mps_label)] = tmp.tensor_input.cpu().numpy()
             self.data_mapped[data_type]['all'] += list(self.data_mapped[data_type][str(mps_label)])
         self.data_mapped[data_type]['all'] = torch.tensor(
             self.data_mapped[data_type]['all'], device=self.device, dtype=self.dtype)
