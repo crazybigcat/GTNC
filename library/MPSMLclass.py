@@ -375,7 +375,7 @@ class GTNC(Programclass.Program, MLclass.MachineLearning):
                 para = copy.deepcopy(self.para)
                 para['classifier_type'] = 'GTN'
                 para['training_label'] = mps_label
-                tmp = GTN(copy.deepcopy(para))
+                tmp = GTN(copy.deepcopy(para), device=self.device)
                                 if 'dealt_input' not in tmp.images_data.keys():
                     tmp.initialize_dataset()
                 if isinstance(tmp.tensor_input, tuple):
@@ -391,7 +391,7 @@ class GTNC(Programclass.Program, MLclass.MachineLearning):
         para['classifier_type'] = 'GTN'
         for mps_label in self.para['training_label']:
             para['training_label'] = mps_label
-            tmp = GTN(copy.deepcopy(para), self.debug_mode)
+            tmp = GTN(copy.deepcopy(para), self.debug_mode, device=self.device)
             if tmp.update_info['is_converged'] == 'untrained':
                 self.is_all_gtn_trained = False
                 print('Warning!!! MPS of which label equals to ' + str(mps_label) + " hasn't trained.")
